@@ -7,7 +7,7 @@ import { ServiceGenerator } from '../generator/service-generator';
 import { FileWriter } from '../generator/file-writer';
 import { Logger } from '../utils/logger';
 import { OpenAPISpec } from '../types/openapi';
-import { isSharedSchema } from '../utils/dto-shared';
+import { DtoImport } from '../utils/dto-import';
 
 export class GeneratorOrchestrator {
   private specParser: SpecParser;
@@ -91,7 +91,7 @@ export class GeneratorOrchestrator {
     const sharedSchemas: { [key: string]: any } = {};
     const resourceSchemas: { [key: string]: any } = {};
     for (const [name, schema] of Object.entries(schemas)) {
-      if (isSharedSchema(schema)) {
+      if (DtoImport.isSharedSchema(schema)) {
         sharedSchemas[name] = schema;
       } else {
         resourceSchemas[name] = schema;

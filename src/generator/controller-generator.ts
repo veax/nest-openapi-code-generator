@@ -1,6 +1,6 @@
 import {OpenAPISpec, Operation, PathItem} from '../types/openapi';
-import { generateImportStatements, getSharedDtoNames, resolveDtoImports } from '../utils/dto-shared';
 import {TemplateLoader} from '../utils/template-loader';
+import {DtoImport} from '../utils/dto-import';
 
 interface ControllerMethod {
     httpMethod: string;
@@ -74,7 +74,7 @@ export class ControllerGenerator {
                 returnType: this.getReturnType(m),
                 hasParams: (m.allParameters && m.allParameters.length > 0) || m.parameters.length > 0 || !!m.bodyParam
             })),
-            dtoImports: generateImportStatements(localDtos, sharedDtosUsed, resourceName),
+            dtoImports: DtoImport.generateImportStatements(localDtos, sharedDtosUsed, resourceName),
         });
     }
 
@@ -568,7 +568,7 @@ export class ControllerGenerator {
             referencedDtos.forEach(dto => dtos.add(dto));
         });
 
-        return resolveDtoImports(dtos, spec);
+        return DtoImport.resolveDtoImports(dtos, spec);
     }
 
     private extractReferencedDtosFromSchema(schema: any): string[] {
