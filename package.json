@@ -13,12 +13,13 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && npm run copy-templates",
+    "build": "rm -rf ./src/generated && tsc && npm run copy-templates",
     "copy-templates": "cp -r src/templates dist/",
     "dev": "tsc --watch",
     "test": "jest",
     "test:watch": "jest --watch",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "openapi-generate": "./dist/bin/cli.js"
   },
   "keywords": [
     "openapi",

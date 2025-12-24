@@ -85,12 +85,35 @@ export class GeneratorOrchestrator {
   ): Promise<void> {
     const schemas = spec.components?.schemas || {};
     const inlineResponseSchemas = this.controllerGenerator.getInlineResponseSchemas();
-    const dtoOutputPath = path.join(outputDir, `${resourceName}.dto.ts`);
-
-    // Generate all DTOs including inline response DTOs
-    const dtoContent = await this.dtoGenerator.generateDtos(schemas, inlineResponseSchemas, spec);
     
-    await this.fileWriter.writeFile(dtoOutputPath, dtoContent);
+    // Separate shared and resource-specific schemas
+    const sharedSchemas: { [key: string]: any } = {};
+    const resourceSchemas: { [key: string]: any } = {};
+    for (const [name, schema] of Object.entries(schemas)) {
+      if (schema['x-shared'] === true) {
+        sharedSchemas[name] = schema;
+      } else {
+        resourceSchemas[name] = schema;
+      }
+    }
+
+    // 1. Generate shared DTOs (if any)
+    if (Object.keys(sharedSchemas).length > 0) {
+      const sharedDir = path.join(this.config.outputDir, 'shared');
+      const sharedDtoPath = path.join(sharedDir, `shared.dto.ts`);
+      const sharedDtoContent = await this.dtoGenerator.generateDtos(sharedSchemas, undefined, spec);
+      await this.fileWriter.writeFile(sharedDtoPath, sharedDtoContent);
+    }
+
+    // 2. Generate resource-specific DTOs (including inline response DTOs)
+    if (
+      Object.keys(resourceSchemas).length > 0 ||
+      (inlineResponseSchemas && inlineResponseSchemas.size > 0)
+    ) {
+      const dtoOutputPath = path.join(outputDir, `${resourceName}.dto.ts`);
+      const dtoContent = await this.dtoGenerator.generateDtos(resourceSchemas, inlineResponseSchemas, spec);
+      await this.fileWriter.writeFile(dtoOutputPath, dtoContent);
+    }
   }
 
   private async generateController(
@@ -100,10 +123,17 @@ export class GeneratorOrchestrator {
   ): Promise<void> {
     const controllerOutputPath = path.join(outputDir, `${resourceName}.controller.base.ts`);
     
+    // Identify shared schemas
+    const sharedSchemas = Object.entries(spec.components?.schemas || {})
+      .filter(([_, schema]) => schema['x-shared'] === true)
+      .map(([name]) => `${name}Dto`);
+
+
     const controllerCode = await this.controllerGenerator.generateController(
       resourceName,
       spec.paths,
-      spec
+      spec,
+      sharedSchemas
     );
 
     await this.fileWriter.writeFile(controllerOutputPath, controllerCode);

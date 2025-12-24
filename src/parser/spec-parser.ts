@@ -13,7 +13,9 @@ export class SpecParser {
       
       // Then validate and resolve references for the main spec
       const spec = await SwaggerParser.validate(specPath) as OpenAPISpec;
-      
+  
+      console.log('spec:', JSON.stringify(spec, null, 2));
+
       // Add original spec as a property for reference lookup
       (spec as any)._originalSpec = this.originalSpec;
       

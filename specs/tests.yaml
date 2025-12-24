@@ -1,0 +1,25 @@
+openapi: 3.0.3
+info:
+  title: Tests API
+  description: API for testing common imports
+  version: 1.0.0
+servers:
+  - url: /api
+    description: API Base Path
+paths:
+  /test:
+    get:
+      summary: Test common imports
+      description: Endpoint to test common schema imports
+      operationId: testCommonImports
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiMessage'
+components:
+  schemas:
+    ApiMessage:
+      $ref: './schemas/common.yaml#/components/schemas/ApiMessage'

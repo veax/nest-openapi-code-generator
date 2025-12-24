@@ -56,13 +56,23 @@ export class ControllerGenerator {
     async generateController(
         resourceName: string,
         paths: { [path: string]: PathItem },
-        spec: OpenAPISpec
+        spec: OpenAPISpec,
+        sharedDtos: string[] = []
     ): Promise<string> {
         const methods = this.extractMethods(paths, spec);
         const tags = this.extractTags(methods);
 
         const template = await this.templateLoader.loadTemplate('controller');
-        const dtoImports = this.extractDtoImports(methods);
+        const { localDtos, sharedDtosUsed } = this.extractDtoImports(methods, sharedDtos);
+
+        // Generate import statements
+        const importStatements = [];
+        if (localDtos.length > 0) {
+            importStatements.push(`import { ${localDtos.join(', ')} } from './${resourceName}.dto';`);
+        }
+        if (sharedDtosUsed.length > 0) {
+            importStatements.push(`import { ${sharedDtosUsed.join(', ')} } from '../shared/shared.dto';`);
+        }
 
         return template({
             className: this.generateClassName(resourceName) + 'Controller',
@@ -73,7 +83,7 @@ export class ControllerGenerator {
                 returnType: this.getReturnType(m),
                 hasParams: (m.allParameters && m.allParameters.length > 0) || m.parameters.length > 0 || !!m.bodyParam
             })),
-            dtoImports: dtoImports.join(', ')
+            importStatements: importStatements.join('\n')
         });
     }
 
@@ -525,7 +535,7 @@ export class ControllerGenerator {
         return Array.from(tags);
     }
 
-    private extractDtoImports(methods: ControllerMethod[]): string[] {
+    private extractDtoImports(methods: ControllerMethod[], sharedDtos: string[] = []): { localDtos: string[], sharedDtosUsed: string[] } {
         const dtos = new Set<string>();
         methods.forEach(m => {
             if (m.bodyParam) {
@@ -567,7 +577,18 @@ export class ControllerGenerator {
             referencedDtos.forEach(dto => dtos.add(dto));
         });
 
-        return Array.from(dtos);
+        // Split into local and shared DTOs
+        const localDtos: string[] = [];
+        const sharedDtosUsed: string[] = [];
+        dtos.forEach(dto => {
+            if (sharedDtos.includes(dto)) {
+                sharedDtosUsed.push(dto);
+            } else {
+                localDtos.push(dto);
+            }
+        });
+
+        return { localDtos, sharedDtosUsed };
     }
 
     private extractReferencedDtosFromSchema(schema: any): string[] {

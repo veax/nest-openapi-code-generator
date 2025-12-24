@@ -1,0 +1,104 @@
+openapi: 3.0.3
+info:
+  title: User API
+  description: API for managing users and their pets
+  version: 1.0.0
+servers:
+  - url: /api
+    description: API Base Path
+paths:
+  /tokens:
+    get:
+      summary: Get app tokens for user
+      description: Returns mapbox token if user is authenticated
+      operationId: getUserTokens
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserTokens'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiMessage'
+  /users/{userId}:
+    get:
+      operationId: getUserById
+      summary: Get user by ID
+      description: Retrieve a specific user by their ID
+      tags:
+        - users
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: The unique identifier of the user
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: User retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+components:
+  schemas:
+    UserTokens:
+      $ref: './schemas/users.yaml#/components/schemas/UserTokens'
+    ApiMessage:
+      $ref: './schemas/common.yaml#/components/schemas/ApiMessage'
+    User:
+      type: object
+      required:
+        - id
+        - email
+        - firstName
+        - lastName
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Unique identifier for the user
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "john.doe@example.com"
+          maxLength: 255
+        firstName:
+          type: string
+          description: User's first name
+          example: "John"
+          minLength: 1
+          maxLength: 50
+        lastName:
+          type: string
+          description: User's last name
+          example: "Doe"
+          minLength: 1
+          maxLength: 50
+        age:
+          type: integer
+          description: User's age
+          minimum: 13
+          maximum: 120
+          example: 30
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when the user was created
+          example: "2023-01-15T10:30:00Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the user was last updated
+          example: "2023-01-15T10:30:00Z"

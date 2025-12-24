@@ -94,7 +94,7 @@ export class DtoGenerator {
 
             // Use original schema with $ref intact if available
             const originalSchema = originalSchemas[schemaName] || schema;
-            const dtoSchema = this.processSchema(dtoName, originalSchema, spec);
+            const dtoSchema = this.processSchema(dtoName, schema, spec);
 
             allDtos.set(dtoName, dtoSchema);
             dependencies.set(dtoName, new Set(dtoSchema.imports));
@@ -233,6 +233,7 @@ export class DtoGenerator {
     }
 
     private processSchema(dtoName: string, schema: any, spec: OpenAPISpec): DtoSchema {
+        console.log(`Processing schema for DTO: ${dtoName}, schema: ${JSON.stringify(schema)}`);
         const properties: DtoProperty[] = [];
         const imports = new Set<string>();
         const required = schema.required || [];

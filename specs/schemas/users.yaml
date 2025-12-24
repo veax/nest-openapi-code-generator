@@ -1,0 +1,58 @@
+openapi: 3.0.3
+components:
+  schemas:
+    UserTokens:
+      type: object
+      properties:
+        mapboxToken:
+          type: string
+
+    Pet:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        age:
+          type: number
+        gender:
+          type: string
+          enum: [male, female]
+        image:
+          type: string
+
+    User:
+      type: object
+      required:
+        - uid
+        - username
+      properties:
+        uid:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        image:
+          type: string
+        location:
+          $ref: './geometry.yaml#/components/schemas/PointCoordinates'
+        pets:
+          type: array
+          items:
+            $ref: '#/definitions/Pet'
+
+    GetUser:
+      allOf:
+        - $ref: '#/definitions/User'
+        - type: object
+          properties:
+            _id:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
