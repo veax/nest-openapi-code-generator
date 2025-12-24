@@ -1,4 +1,4 @@
-import SwaggerParser from '@apidevtools/swagger-parser';
+import SwaggerParser, { dereference } from '@apidevtools/swagger-parser';
 import { OpenAPISpec } from '../types/openapi';
 import * as fs from 'fs-extra';
 import * as path from 'path';
@@ -13,7 +13,7 @@ export class SpecParser {
       
       // Then validate and resolve references for the main spec
       const spec = await SwaggerParser.validate(specPath) as OpenAPISpec;
-      
+
       // Add original spec as a property for reference lookup
       (spec as any)._originalSpec = this.originalSpec;
       
