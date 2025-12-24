@@ -433,10 +433,68 @@ The generator automatically:
 - Capitalizes each part using PascalCase
 - Joins them together for the class name
 
+### Shared DTOs
+A shared DTO is a Data Transfer Object that is used across multiple resources or modules in your API. To avoid duplication, shared DTOs are generated once in a dedicated `shared/` folder in `shared.dto.ts` file and imported wherever needed. 
+
+#### How to Mark a Schema as Shared
+To mark a schema as shared, add the `x-shared: true` vendor extension to your schema definition in your OpenAPI YAML file. For example:
+```yaml
+# specs/schemas/common.yaml
+components:
+  schemas:
+    ApiMessage:
+      x-shared: true
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+```
+
+Then use it in your user.openapi.yaml file:
+```yaml
+# specs/user.openapi.yaml
+openapi: 3.1.0
+...
+paths:
+  /users:
+    get:
+      operationId: getUsers
+      summary: Get all users
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiMessage' 
+
+components:
+  schemas:
+    User:
+      type: object
+      ...
+    ApiMessage: # <-- reference external schema from here
+      $ref: './schemas/common.yaml#/components/schemas/ApiMessage'
+```
+For correct parsing it's important to first reference your external schema under `user.openapi.yaml` `components.schemas`
+
+Any schema with `x-shared: true` will be generated as a shared DTO.
+This approach keeps your code DRY and your DTOs consistent across your API.
+
 ### Directory Structure
 
-Generated files are organized by resource name:
-
+Generated files are organized by resource name.
+Shared dto's are under shared/ folder
 ```
 src/generated/
 ├── user/
@@ -445,9 +503,11 @@ src/generated/
 ├── user.query/
 │   ├── user.query.controller.base.ts
 │   └── user.query.dto.ts
-└── order-management/
-    ├── order-management.controller.base.ts
-    └── order-management.dto.ts
+├── order-management/
+│   ├── order-management.controller.base.ts
+│   └── order-management.dto.ts
+└── shared/
+    └── shared.dto.ts
 ```
 
 ## Path Parameter Handling
