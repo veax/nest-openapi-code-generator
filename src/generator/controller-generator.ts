@@ -1,4 +1,5 @@
 import {OpenAPISpec, Operation, PathItem} from '../types/openapi';
+import { generateImportStatements, getSharedDtoNames, resolveDtoImports } from '../utils/dto-shared';
 import {TemplateLoader} from '../utils/template-loader';
 
 interface ControllerMethod {
@@ -57,22 +58,12 @@ export class ControllerGenerator {
         resourceName: string,
         paths: { [path: string]: PathItem },
         spec: OpenAPISpec,
-        sharedDtos: string[] = []
     ): Promise<string> {
         const methods = this.extractMethods(paths, spec);
         const tags = this.extractTags(methods);
 
         const template = await this.templateLoader.loadTemplate('controller');
-        const { localDtos, sharedDtosUsed } = this.extractDtoImports(methods, sharedDtos);
-
-        // Generate import statements
-        const importStatements = [];
-        if (localDtos.length > 0) {
-            importStatements.push(`import { ${localDtos.join(', ')} } from './${resourceName}.dto';`);
-        }
-        if (sharedDtosUsed.length > 0) {
-            importStatements.push(`import { ${sharedDtosUsed.join(', ')} } from '../shared/shared.dto';`);
-        }
+        const { localDtos, sharedDtosUsed } = this.extractDtoImports(methods, spec);
 
         return template({
             className: this.generateClassName(resourceName) + 'Controller',
@@ -83,7 +74,7 @@ export class ControllerGenerator {
                 returnType: this.getReturnType(m),
                 hasParams: (m.allParameters && m.allParameters.length > 0) || m.parameters.length > 0 || !!m.bodyParam
             })),
-            importStatements: importStatements.join('\n')
+            dtoImports: generateImportStatements(localDtos, sharedDtosUsed, resourceName),
         });
     }
 
@@ -535,7 +526,7 @@ export class ControllerGenerator {
         return Array.from(tags);
     }
 
-    private extractDtoImports(methods: ControllerMethod[], sharedDtos: string[] = []): { localDtos: string[], sharedDtosUsed: string[] } {
+    private extractDtoImports(methods: ControllerMethod[], spec: OpenAPISpec): { localDtos: string[], sharedDtosUsed: string[] } {
         const dtos = new Set<string>();
         methods.forEach(m => {
             if (m.bodyParam) {
@@ -577,18 +568,7 @@ export class ControllerGenerator {
             referencedDtos.forEach(dto => dtos.add(dto));
         });
 
-        // Split into local and shared DTOs
-        const localDtos: string[] = [];
-        const sharedDtosUsed: string[] = [];
-        dtos.forEach(dto => {
-            if (sharedDtos.includes(dto)) {
-                sharedDtosUsed.push(dto);
-            } else {
-                localDtos.push(dto);
-            }
-        });
-
-        return { localDtos, sharedDtosUsed };
+        return resolveDtoImports(dtos, spec);
     }
 
     private extractReferencedDtosFromSchema(schema: any): string[] {

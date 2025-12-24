@@ -1,4 +1,5 @@
 import { OpenAPISpec, PathItem, Operation } from '../types/openapi';
+import { generateImportStatements, resolveDtoImports } from '../utils/dto-shared';
 import { TemplateLoader } from '../utils/template-loader';
 
 interface ServiceMethod {
@@ -36,7 +37,7 @@ export class ServiceGenerator {
     const methods = this.extractMethods(paths, spec, resourceName);
 
     const template = await this.templateLoader.loadTemplate('service');
-    const dtoImports = this.extractDtoImports(methods);
+    const { localDtos, sharedDtosUsed } = this.extractDtoImports(methods, spec);
 
     return template({
       className: this.generateClassName(resourceName),
@@ -45,7 +46,7 @@ export class ServiceGenerator {
         ...m,
         hasParams: m.parameters.length > 0 || !!m.bodyParam
       })),
-      dtoImports: dtoImports.join(', ')
+      dtoImports: generateImportStatements(localDtos, sharedDtosUsed, resourceName)
     });
   }
 
@@ -201,7 +202,7 @@ export class ServiceGenerator {
     return `${httpMethod}${this.capitalize(resource)}`;
   }
 
-  private extractDtoImports(methods: ServiceMethod[]): string[] {
+  private extractDtoImports(methods: ServiceMethod[], spec: OpenAPISpec): { localDtos: string[], sharedDtosUsed: string[] } {
     const dtos = new Set<string>();
     methods.forEach(m => {
       if (m.bodyParam) {
@@ -211,7 +212,7 @@ export class ServiceGenerator {
         dtos.add(m.returnType);
       }
     });
-    return Array.from(dtos);
+    return resolveDtoImports(dtos, spec);
   }
 
   private capitalize(str: string): string {

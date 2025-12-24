@@ -7,6 +7,7 @@ import { ServiceGenerator } from '../generator/service-generator';
 import { FileWriter } from '../generator/file-writer';
 import { Logger } from '../utils/logger';
 import { OpenAPISpec } from '../types/openapi';
+import { isSharedSchema } from '../utils/dto-shared';
 
 export class GeneratorOrchestrator {
   private specParser: SpecParser;
@@ -90,7 +91,7 @@ export class GeneratorOrchestrator {
     const sharedSchemas: { [key: string]: any } = {};
     const resourceSchemas: { [key: string]: any } = {};
     for (const [name, schema] of Object.entries(schemas)) {
-      if (schema['x-shared'] === true) {
+      if (isSharedSchema(schema)) {
         sharedSchemas[name] = schema;
       } else {
         resourceSchemas[name] = schema;
@@ -122,18 +123,11 @@ export class GeneratorOrchestrator {
     outputDir: string
   ): Promise<void> {
     const controllerOutputPath = path.join(outputDir, `${resourceName}.controller.base.ts`);
-    
-    // Identify shared schemas
-    const sharedSchemas = Object.entries(spec.components?.schemas || {})
-      .filter(([_, schema]) => schema['x-shared'] === true)
-      .map(([name]) => `${name}Dto`);
-
 
     const controllerCode = await this.controllerGenerator.generateController(
       resourceName,
       spec.paths,
-      spec,
-      sharedSchemas
+      spec
     );
 
     await this.fileWriter.writeFile(controllerOutputPath, controllerCode);
