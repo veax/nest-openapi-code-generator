@@ -7,6 +7,7 @@ import { ServiceGenerator } from '../generator/service-generator';
 import { FileWriter } from '../generator/file-writer';
 import { Logger } from '../utils/logger';
 import { OpenAPISpec } from '../types/openapi';
+import { DtoImporter } from '../utils/dto-importer';
 
 export class GeneratorOrchestrator {
   private specParser: SpecParser;
@@ -19,12 +20,18 @@ export class GeneratorOrchestrator {
   constructor(private config: GeneratorConfig) {
     this.logger = new Logger();
     this.specParser = new SpecParser();
-    this.dtoGenerator = new DtoGenerator();
+    this.dtoGenerator = new DtoGenerator(
+      this.config.templateDir
+    );
     this.controllerGenerator = new ControllerGenerator(
       this.config.templateDir,
-      this.config.generatorOptions?.includeErrorTypesInReturnType ?? false
+      this.config.generatorOptions?.includeErrorTypesInReturnType ?? false,
+      this.config.generateDtos
     );
-    this.serviceGenerator = new ServiceGenerator(this.config.templateDir);
+    this.serviceGenerator = new ServiceGenerator(
+      this.config.templateDir, 
+      this.config.generateDtos
+    );
     this.fileWriter = new FileWriter(this.logger);
   }
 
@@ -83,14 +90,26 @@ export class GeneratorOrchestrator {
     spec: OpenAPISpec,
     outputDir: string
   ): Promise<void> {
-    const schemas = spec.components?.schemas || {};
     const inlineResponseSchemas = this.controllerGenerator.getInlineResponseSchemas();
-    const dtoOutputPath = path.join(outputDir, `${resourceName}.dto.ts`);
 
-    // Generate all DTOs including inline response DTOs
-    const dtoContent = await this.dtoGenerator.generateDtos(schemas, inlineResponseSchemas, spec);
-    
-    await this.fileWriter.writeFile(dtoOutputPath, dtoContent);
+    const {
+      sharedDtoContent,
+      resourceDtoContent
+    } = await this.dtoGenerator.generateAllDtosSplit(
+      spec,
+      inlineResponseSchemas,
+    );
+
+    if (sharedDtoContent) {
+      const sharedDir = path.join(this.config.outputDir, DtoImporter.SHARED_FOLDER);
+      const sharedDtoPath = path.join(sharedDir, `${DtoImporter.SHARED_DTO_FILE}.ts`);
+      await this.fileWriter.writeFile(sharedDtoPath, sharedDtoContent);
+    }
+
+    if (resourceDtoContent) {
+      const dtoOutputPath = path.join(outputDir, `${resourceName}.dto.ts`);
+      await this.fileWriter.writeFile(dtoOutputPath, resourceDtoContent);
+    }
   }
 
   private async generateController(
@@ -99,7 +118,7 @@ export class GeneratorOrchestrator {
     outputDir: string
   ): Promise<void> {
     const controllerOutputPath = path.join(outputDir, `${resourceName}.controller.base.ts`);
-    
+
     const controllerCode = await this.controllerGenerator.generateController(
       resourceName,
       spec.paths,
