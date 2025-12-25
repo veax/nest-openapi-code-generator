@@ -170,6 +170,15 @@ describe('ControllerGenerator', () => {
             expect(result).toContain('UserDto');
             expect(result).toContain('UserProfileDto');
             expect(result).toContain('ValidationErrorDto');
+        });
+
+        it('should generate shared DTO imports based on used schemas', async () => {
+            const result = await controllerGenerator.generateController('user', testSpec.paths, testSpec);
+
+            expect(result).toContain('import {');
+            expect(result).toContain('} from \'../shared/shared.dto\'');
+
+            // Should import shared DTOs based on actual OpenAPI x-shared: true vendor extension
             expect(result).toContain('ErrorDto');
         });
     });

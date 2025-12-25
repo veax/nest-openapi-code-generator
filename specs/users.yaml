@@ -25,6 +25,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiMessage'
+  /users:
+    get:
+      operationId: getUsers
+      summary: Get all users
+      description: Retrieve a paginated list of users
+      tags:
+        - users
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of users per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: status
+          in: query
+          description: Filter users by status
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive, pending]
+      responses:
+        '200':
+          description: List of users retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
   /users/{userId}:
     get:
       operationId: getUserById
@@ -53,6 +99,8 @@ components:
       $ref: './schemas/users.yaml#/components/schemas/UserTokens'
     ApiMessage:
       $ref: './schemas/common.yaml#/components/schemas/ApiMessage'
+    Pagination:
+      $ref: './schemas/common.yaml#/components/schemas/Pagination'
     User:
       type: object
       required:

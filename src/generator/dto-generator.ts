@@ -233,7 +233,6 @@ export class DtoGenerator {
     }
 
     private processSchema(dtoName: string, schema: any, spec: OpenAPISpec): DtoSchema {
-        console.log(`Processing schema for DTO: ${dtoName}, schema: ${JSON.stringify(schema)}`);
         const properties: DtoProperty[] = [];
         const imports = new Set<string>();
         const required = schema.required || [];
