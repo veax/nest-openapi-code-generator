@@ -6,7 +6,7 @@ const SHARED_FILE_PATH = '../shared/shared.dto';
 export class DtoImport {
   
   static isSharedSchema(schema: any): boolean {
-    return schema[SHARED_SCHEMA_MARKER] === true;
+    return schema && schema[SHARED_SCHEMA_MARKER] === true;
   }
 
   static resolveDtoImports(usedDtos: Set<string>,spec: OpenAPISpec): { localDtos: string[]; sharedDtosUsed: string[] } {

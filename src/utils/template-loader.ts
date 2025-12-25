@@ -124,6 +124,10 @@ import {
   ValidateNested, IsInt
 } from 'class-validator';
 import { Type } from 'class-transformer';
+{{#if dtoImports}}
+{{{dtoImports}}}
+{{/if}}
+
 
 {{#each enums}}
 export enum {{name}} {
