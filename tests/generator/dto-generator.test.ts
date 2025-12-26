@@ -33,8 +33,8 @@ describe('DtoGenerator', () => {
         });
 
         it('should generate shared DTO imports based on schemas nested DTO', async () => {
-            const userSchema = testSpec.components?.schemas?.User as SchemaObject;
-            const result = await dtoGenerator.generateDto('UserDto', userSchema, testSpec);
+            const schemas = testSpec.components?.schemas || {};
+            const result = await dtoGenerator.generateAllDtos(schemas, testSpec);
 
             // Should import shared DTOs based on actual OpenAPI x-shared: true vendor extension
             expect(result).toContain('import { PaginationDto } from \'../shared/shared.dto\'');

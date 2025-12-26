@@ -90,7 +90,7 @@ export class GeneratorOrchestrator {
   ): Promise<void> {
     const schemas = spec.components?.schemas || {};
     const inlineResponseSchemas = this.controllerGenerator.getInlineResponseSchemas();
-    
+
     // Separate shared and resource-specific schemas
     const sharedSchemas: { [key: string]: any } = {};
     const resourceSchemas: { [key: string]: any } = {};
@@ -102,15 +102,15 @@ export class GeneratorOrchestrator {
       }
     }
 
-    // 1. Generate shared DTOs (if any)
+    // Generate shared DTOs 
     if (Object.keys(sharedSchemas).length > 0) {
-      const sharedDir = path.join(this.config.outputDir, 'shared');
-      const sharedDtoPath = path.join(sharedDir, `shared.dto.ts`);
+      const sharedDir = path.join(this.config.outputDir, DtoImporter.SHARED_FOLDER);
+      const sharedDtoPath = path.join(sharedDir, `${DtoImporter.SHARED_DTO_FILE}.ts`);
       const sharedDtoContent = await this.dtoGenerator.generateDtos(sharedSchemas, undefined, spec);
       await this.fileWriter.writeFile(sharedDtoPath, sharedDtoContent);
     }
 
-    // 2. Generate resource-specific DTOs (including inline response DTOs)
+    // Generate resource-specific DTOs (including inline response DTOs)
     if (
       Object.keys(resourceSchemas).length > 0 ||
       (inlineResponseSchemas && inlineResponseSchemas.size > 0)

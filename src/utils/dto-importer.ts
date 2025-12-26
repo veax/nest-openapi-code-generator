@@ -1,12 +1,15 @@
 import { OpenAPISpec } from '../types/openapi';
 
-const SHARED_SCHEMA_MARKER = 'x-shared';
-const SHARED_FILE_PATH = '../shared/shared.dto';
 
 export class DtoImporter {
+
+  static readonly SHARED_FOLDER = 'shared';
+  static readonly SHARED_DTO_FILE = 'shared.dto';
+  private static readonly SHARED_FILE_PATH = `../${DtoImporter.SHARED_FOLDER}/${DtoImporter.SHARED_DTO_FILE}`;
+  private static readonly SHARED_SCHEMA_MARKER = 'x-shared';
   
   static isSharedSchema(schema: any): boolean {
-    return schema && schema[SHARED_SCHEMA_MARKER] === true;
+    return schema && schema[DtoImporter.SHARED_SCHEMA_MARKER] === true;
   }
 
   static resolveDtoImports(usedDtos: Set<string>,spec: OpenAPISpec): { localDtos: string[]; sharedDtosUsed: string[] } {
@@ -32,7 +35,7 @@ export class DtoImporter {
     }
     if (sharedDtosUsed.length > 0) {
       imports.push(
-        `import { ${sharedDtosUsed.join(', ')} } from '${SHARED_FILE_PATH}';`
+        `import { ${sharedDtosUsed.join(', ')} } from '${DtoImporter.SHARED_FILE_PATH}';`
       );
     }
     return imports.join('\n');

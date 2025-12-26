@@ -8,6 +8,23 @@ components:
       properties:
         message:
           type: string
+
+    NestedInfo:
+      type: object
+      required:
+        - infoId
+        - infoDescription
+      properties:
+        infoId:
+          type: string
+          format: uuid
+          description: The unique identifier for the nested info
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        infoDescription:
+          type: string
+          description: A description for the nested info
+          example: "This is some nested information."
+
     Pagination:
       x-shared: true
       type: object
@@ -38,4 +55,6 @@ components:
           minimum: 0
           description: Total number of pages
           example: 15
+        nestedInfo:
+          $ref: '#/components/schemas/NestedInfo'
 
