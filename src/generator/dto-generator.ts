@@ -1,6 +1,6 @@
 import {OpenAPISpec} from '../types/openapi';
-import {DtoImport} from '../utils/dto-import';
 import {TemplateLoader} from '../utils/template-loader';
+import {DtoImporter} from '../utils/dto-importer';
 
 interface DtoProperty {
     name: string;
@@ -159,6 +159,8 @@ export class DtoGenerator {
 
         // Return DTOs in dependency order
         const orderedDtos = sorted.map(dtoName => allDtos.get(dtoName)).filter(Boolean) as DtoSchema[];
+        
+        // Collect all used DTOs for import statements
         const usedDtos = new Set<string>();
         for (const dto of orderedDtos) {
             for (const imp of dto.imports) {
@@ -166,11 +168,11 @@ export class DtoGenerator {
             }
         }
 
-        const { localDtos, sharedDtosUsed } = DtoImport.resolveDtoImports(usedDtos, spec);
+        const { localDtos, sharedDtosUsed } = DtoImporter.resolveDtoImports(usedDtos, spec);
         return template({
             schemas: orderedDtos,
             enums: allEnums,
-            dtoImports: DtoImport.generateImportStatements([], sharedDtosUsed, ''),
+            dtoImports: DtoImporter.generateImportStatements([], sharedDtosUsed, ''),
         });
     }
 

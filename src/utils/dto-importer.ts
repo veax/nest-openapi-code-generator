@@ -3,7 +3,7 @@ import { OpenAPISpec } from '../types/openapi';
 const SHARED_SCHEMA_MARKER = 'x-shared';
 const SHARED_FILE_PATH = '../shared/shared.dto';
 
-export class DtoImport {
+export class DtoImporter {
   
   static isSharedSchema(schema: any): boolean {
     return schema && schema[SHARED_SCHEMA_MARKER] === true;

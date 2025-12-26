@@ -1,6 +1,6 @@
 import { OpenAPISpec, PathItem, Operation } from '../types/openapi';
 import { TemplateLoader } from '../utils/template-loader';
-import { DtoImport } from '../utils/dto-import';
+import { DtoImporter } from '../utils/dto-importer';
 
 interface ServiceMethod {
   httpMethod: string;
@@ -46,7 +46,7 @@ export class ServiceGenerator {
         ...m,
         hasParams: m.parameters.length > 0 || !!m.bodyParam
       })),
-      dtoImports: DtoImport.generateImportStatements(localDtos, sharedDtosUsed, resourceName)
+      dtoImports: DtoImporter.generateImportStatements(localDtos, sharedDtosUsed, resourceName)
     });
   }
 
@@ -212,7 +212,7 @@ export class ServiceGenerator {
         dtos.add(m.returnType);
       }
     });
-    return DtoImport.resolveDtoImports(dtos, spec);
+    return DtoImporter.resolveDtoImports(dtos, spec);
   }
 
   private capitalize(str: string): string {
