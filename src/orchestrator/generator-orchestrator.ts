@@ -23,9 +23,13 @@ export class GeneratorOrchestrator {
     this.dtoGenerator = new DtoGenerator();
     this.controllerGenerator = new ControllerGenerator(
       this.config.templateDir,
-      this.config.generatorOptions?.includeErrorTypesInReturnType ?? false
+      this.config.generatorOptions?.includeErrorTypesInReturnType ?? false,
+      this.config.generateDtos
     );
-    this.serviceGenerator = new ServiceGenerator(this.config.templateDir);
+    this.serviceGenerator = new ServiceGenerator(
+      this.config.templateDir, 
+      this.config.generateDtos
+    );
     this.fileWriter = new FileWriter(this.logger);
   }
 

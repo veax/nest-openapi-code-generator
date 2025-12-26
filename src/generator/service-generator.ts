@@ -24,9 +24,11 @@ interface BodyParameter {
 
 export class ServiceGenerator {
   private templateLoader: TemplateLoader;
+  private readonly isDtoGenerationEnabled: boolean;
 
-  constructor(templateDir?: string) {
+  constructor(templateDir?: string, isDtoGenerationEnabled: boolean = true) {
     this.templateLoader = new TemplateLoader(templateDir);
+    this.isDtoGenerationEnabled = isDtoGenerationEnabled;
   }
 
   async generateService(
@@ -46,7 +48,7 @@ export class ServiceGenerator {
         ...m,
         hasParams: m.parameters.length > 0 || !!m.bodyParam
       })),
-      dtoImports: DtoImporter.generateImportStatements(localDtos, sharedDtosUsed, resourceName)
+      dtoImports: this.isDtoGenerationEnabled ? DtoImporter.generateImportStatements(localDtos, sharedDtosUsed, resourceName) : undefined
     });
   }
 
@@ -203,6 +205,10 @@ export class ServiceGenerator {
   }
 
   private extractDtoImports(methods: ServiceMethod[], spec: OpenAPISpec): { localDtos: string[], sharedDtosUsed: string[] } {
+    if (!this.isDtoGenerationEnabled) {
+        return { localDtos: [], sharedDtosUsed: [] };
+    }
+
     const dtos = new Set<string>();
     methods.forEach(m => {
       if (m.bodyParam) {
