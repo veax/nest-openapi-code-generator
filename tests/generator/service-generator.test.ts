@@ -123,6 +123,13 @@ describe('ServiceGenerator', () => {
       expect(result).toContain('UserDto');
       expect(result).toContain('UserProfileDto');
     });
+
+    it('should generate shared DTO imports based on used schemas', async () => {
+        const result = await serviceGenerator.generateService('user', testSpec.paths, testSpec);
+
+        // Should import shared DTOs based on actual OpenAPI x-shared: true vendor extension
+        expect(result).toContain('import { ErrorDto } from \'../shared/shared.dto\'');
+    });
   });
 
   describe('method name generation', () => {

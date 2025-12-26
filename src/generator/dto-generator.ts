@@ -23,54 +23,6 @@ export class DtoGenerator {
         this.templateLoader = new TemplateLoader(templateDir);
     }
 
-    async generateDto(dtoName: string, schema: any, spec: OpenAPISpec): Promise<string> {
-        const template = await this.templateLoader.loadTemplate('dto');
-
-        // Get the original schema with $ref intact if available
-        const originalSpec = (spec as any)._originalSpec;
-        const originalSchema = originalSpec ? this.findOriginalSchema(dtoName, originalSpec) : schema;
-
-        const mainDtoSchema = this.processSchema(dtoName, originalSchema || schema, spec);
-
-        // Collect all referenced DTOs and order them properly
-        const allDtos = this.collectAndOrderAllDtos(mainDtoSchema, spec);
-
-        // Collect enums from all schemas
-        const allEnums = new Set<{ name: string, values: Array<{ key: string, value: string }> }>();
-        const enumNames = new Set<string>();
-
-        // Collect enums from the main schema
-        const mainEnums = this.collectEnumsForTemplate(schema, spec);
-        mainEnums.forEach(enumDef => {
-            if (!enumNames.has(enumDef.name)) {
-                enumNames.add(enumDef.name);
-                allEnums.add(enumDef);
-            }
-        });
-
-        // Collect enums from referenced schemas
-        for (const dto of allDtos) {
-            if (dto.name !== dtoName) { // Skip main DTO as we already processed it
-                const refSchemaName = dto.name.replace(/Dto$/, '');
-                const refSchema = spec.components?.schemas?.[refSchemaName];
-                if (refSchema) {
-                    const refEnums = this.collectEnumsForTemplate(refSchema, spec);
-                    refEnums.forEach(enumDef => {
-                        if (!enumNames.has(enumDef.name)) {
-                            enumNames.add(enumDef.name);
-                            allEnums.add(enumDef);
-                        }
-                    });
-                }
-            }
-        }
-
-        return template({
-            schemas: allDtos,
-            enums: Array.from(allEnums)
-        });
-    }
-
     async generateDtos(schemas: { [key: string]: any }, inlineSchemas?: Map<string, any>, spec?: OpenAPISpec): Promise<string> {
         // If no spec provided, create a minimal one
         if (!spec) {
@@ -173,73 +125,6 @@ export class DtoGenerator {
             schemas: orderedDtos,
             enums: allEnums,
             dtoImports: DtoImporter.generateImportStatements([], sharedDtosUsed, ''),
-        });
-    }
-
-    async generateAllDtos(schemas: { [key: string]: any }, spec: OpenAPISpec): Promise<string> {
-        const template = await this.templateLoader.loadTemplate('dto');
-
-        const allDtos = new Map<string, DtoSchema>();
-        const dependencies = new Map<string, Set<string>>();
-        const nestedDtoSchemas = new Map<string, any>(); // Store schemas for nested DTOs
-        const allEnums: Array<{ name: string, values: Array<{ key: string, value: string }> }> = [];
-        const enumNames = new Set<string>();
-
-        // Get the original spec with $ref intact if available
-        const originalSpec = (spec as any)._originalSpec;
-        const originalSchemas = originalSpec?.components?.schemas || schemas;
-
-        // First pass: generate all main DTOs and collect nested DTO schemas
-        for (const [schemaName, schema] of Object.entries(schemas)) {
-            const dtoName = `${schemaName}Dto`;
-
-            // Use original schema with $ref intact if available
-            const originalSchema = originalSchemas[schemaName] || schema;
-            const dtoSchema = this.processSchema(dtoName, originalSchema, spec);
-
-            allDtos.set(dtoName, dtoSchema);
-            dependencies.set(dtoName, new Set(dtoSchema.imports));
-
-            // Collect nested DTO schemas
-            this.collectNestedDtoSchemas(originalSchema, nestedDtoSchemas, spec, dtoName);
-
-            // Collect enums from the resolved schema (not original to avoid $ref issues)
-            const schemaEnums = this.collectEnumsForTemplate(schema, spec);
-            schemaEnums.forEach(enumDef => {
-                if (!enumNames.has(enumDef.name)) {
-                    enumNames.add(enumDef.name);
-                    allEnums.push(enumDef);
-                }
-            });
-        }
-
-        // Second pass: generate nested DTOs
-        for (const [nestedDtoName, nestedSchema] of nestedDtoSchemas.entries()) {
-            if (!allDtos.has(nestedDtoName)) {
-                const dtoSchema = this.processSchema(nestedDtoName, nestedSchema, spec);
-                allDtos.set(nestedDtoName, dtoSchema);
-                dependencies.set(nestedDtoName, new Set(dtoSchema.imports));
-
-                // Collect enums from nested schemas
-                const nestedEnums = this.collectEnumsForTemplate(nestedSchema, spec);
-                nestedEnums.forEach(enumDef => {
-                    if (!enumNames.has(enumDef.name)) {
-                        enumNames.add(enumDef.name);
-                        allEnums.push(enumDef);
-                    }
-                });
-            }
-        }
-
-        // Topological sort to resolve dependency order
-        const sorted = this.topologicalSort(dependencies);
-
-        // Return DTOs in dependency order
-        const orderedDtos = sorted.map(dtoName => allDtos.get(dtoName)).filter(Boolean) as DtoSchema[];
-
-        return template({
-            schemas: orderedDtos,
-            enums: allEnums
         });
     }
 
@@ -538,23 +423,6 @@ export class DtoGenerator {
         }
     }
 
-    private resolveSchemaReference(ref: string, spec: OpenAPISpec): any {
-        // Handle #/components/schemas/SchemaName format
-        if (ref.startsWith('#/components/schemas/')) {
-            const schemaName = ref.replace('#/components/schemas/', '');
-            return spec.components?.schemas?.[schemaName];
-        }
-
-        // Handle other reference formats if needed
-        return null;
-    }
-
-    private findOriginalSchema(dtoName: string, originalSpec: OpenAPISpec): any {
-        // Extract schema name from DTO name (remove 'Dto' suffix)
-        const schemaName = dtoName.replace(/Dto$/, '');
-        return originalSpec.components?.schemas?.[schemaName];
-    }
-
     private findMatchingExistingDto(schema: any, spec: OpenAPISpec): string | null {
         // Check if this nested object matches an existing schema in the spec
         const schemas = spec.components?.schemas || {};
@@ -623,50 +491,6 @@ export class DtoGenerator {
                 }
             }
         }
-    }
-
-    private collectAndOrderAllDtos(mainDto: DtoSchema, spec: OpenAPISpec): DtoSchema[] {
-        const allDtos = new Map<string, DtoSchema>();
-        const dependencies = new Map<string, Set<string>>();
-        const originalSpec = (spec as any)._originalSpec;
-
-        // Add the main DTO
-        allDtos.set(mainDto.name, mainDto);
-        dependencies.set(mainDto.name, new Set(mainDto.imports));
-
-        // Collect all referenced DTOs recursively
-        const collectDto = (dtoName: string, visited = new Set<string>()): void => {
-            if (allDtos.has(dtoName) || visited.has(dtoName)) {
-                return;
-            }
-            visited.add(dtoName);
-
-            const schemaName = dtoName.replace(/Dto$/, '');
-            const originalSchema = originalSpec?.components?.schemas?.[schemaName];
-            const resolvedSchema = spec.components?.schemas?.[schemaName];
-
-            if (originalSchema && resolvedSchema) {
-                const dtoSchema = this.processSchema(dtoName, originalSchema, spec);
-                allDtos.set(dtoName, dtoSchema);
-                dependencies.set(dtoName, new Set(dtoSchema.imports));
-
-                // Recursively collect dependencies
-                for (const dep of dtoSchema.imports) {
-                    collectDto(dep, visited);
-                }
-            }
-        };
-
-        // Start collection from the main DTO's imports
-        for (const importName of mainDto.imports) {
-            collectDto(importName);
-        }
-
-        // Topological sort to resolve dependency order
-        const sorted = this.topologicalSort(dependencies);
-
-        // Return DTOs in dependency order (dependencies first, then main DTO last)
-        return sorted.map(dtoName => allDtos.get(dtoName)).filter(Boolean) as DtoSchema[];
     }
 
     private topologicalSort(dependencies: Map<string, Set<string>>): string[] {
@@ -761,5 +585,22 @@ export class DtoGenerator {
         }
 
         return enums;
+    }
+
+    /**
+     * Use generateDtos() for real logic. This method is kept for test compatibility and delegates to generateDtos().
+     */
+    async generateDto(dtoName: string, schema: any, spec: OpenAPISpec): Promise<string> {
+        // Wrap the single schema in an object and call generateDtos
+        const schemas = { [dtoName.replace(/Dto$/, '')]: schema };
+        // generateDtos expects schema names without 'Dto' suffix
+        return this.generateDtos(schemas, undefined, spec);
+    }
+
+    /**
+     * Use generateDtos() for real logic. This method is kept for test compatibility and delegates to generateDtos().
+     */
+    async generateAllDtos(schemas: { [key: string]: any }, spec: OpenAPISpec): Promise<string> {
+        return this.generateDtos(schemas, undefined, spec);
     }
 }
