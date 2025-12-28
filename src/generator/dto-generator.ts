@@ -1,7 +1,6 @@
 import {OpenAPISpec} from '../types/openapi';
 import {TemplateLoader} from '../utils/template-loader';
 import {DtoImporter} from '../utils/dto-importer';
-import * as path from 'path';
 
 interface DtoProperty {
     name: string;
@@ -24,36 +23,31 @@ export class DtoGenerator {
         this.templateLoader = new TemplateLoader(templateDir);
     }
 
-    async generateAllDtoFiles(
-        resourceName: string,
+    async generateAllDtosSplit(
         spec: OpenAPISpec,
-        outputDir: string,
-        inlineResponseSchemas: Map<string, any>,
-        configOutputDir: string
-    ): Promise<Array<{ filePath: string, content: string }>> {
+        inlineResponseSchemas?: Map<string, any>
+    ): Promise<{
+        sharedDtoContent?: string,
+        resourceDtoContent?: string
+    }> {
         const schemas = spec.components?.schemas || {};
         const { sharedSchemas, resourceSchemas } = DtoGenerator.splitSchemas(schemas);
-        const results: Array<{ filePath: string, content: string }> = [];
 
-        // Shared DTOs
+        let sharedDtoContent: string | undefined;
+        let resourceDtoContent: string | undefined;
+
         if (Object.keys(sharedSchemas).length > 0) {
-            const sharedDir = path.join(configOutputDir, DtoImporter.SHARED_FOLDER);
-            const sharedDtoPath = path.join(sharedDir, `${DtoImporter.SHARED_DTO_FILE}.ts`);
-            const sharedDtoContent = await this.generateDtos(sharedSchemas, undefined, spec);
-            results.push({ filePath: sharedDtoPath, content: sharedDtoContent });
+            sharedDtoContent = await this.generateDtos(sharedSchemas, undefined, spec);
         }
 
-        // Resource-specific DTOs (including inline response DTOs)
         if (
             Object.keys(resourceSchemas).length > 0 ||
             (inlineResponseSchemas && inlineResponseSchemas.size > 0)
         ) {
-            const dtoOutputPath = path.join(outputDir, `${resourceName}.dto.ts`);
-            const dtoContent = await this.generateDtos(resourceSchemas, inlineResponseSchemas, spec);
-            results.push({ filePath: dtoOutputPath, content: dtoContent });
+            resourceDtoContent = await this.generateDtos(resourceSchemas, inlineResponseSchemas, spec);
         }
 
-        return results;
+        return { sharedDtoContent, resourceDtoContent };
     }
 
     async generateDto(dtoName: string, schema: any, spec: OpenAPISpec): Promise<string> {

@@ -32,12 +32,16 @@ describe('DtoGenerator', () => {
             expect(result).toContain('lastName: string');
         });
 
-        it('should generate shared DTO imports based on schemas nested DTO', async () => {
-            const schemas = testSpec.components?.schemas || {};
-            const result = await dtoGenerator.generateAllDtos(schemas, testSpec);
+        it('should generate basic DTOs and shared DTOs', async () => {
+            const result = await dtoGenerator.generateAllDtosSplit(testSpec);
 
-            // Should import shared DTOs based on actual OpenAPI x-shared: true vendor extension
-            expect(result).toContain('import { PaginationDto } from \'../shared/shared.dto\'');
+            expect(result.sharedDtoContent).toContain('export class PaginationDto');
+            expect(result.sharedDtoContent).toContain('export class ErrorDto');
+            expect(result.sharedDtoContent).toContain('export class ValidationErrorDto');
+
+            expect(result.resourceDtoContent).toContain('export class UserDto');
+            expect(result.resourceDtoContent).toContain('export class CreateUserRequestDto');
+            expect(result.resourceDtoContent).toContain('export class UserProfileDto');  
         });
 
         it('should generate proper validation decorators for string properties', async () => {
