@@ -7,7 +7,6 @@ import { ServiceGenerator } from '../generator/service-generator';
 import { FileWriter } from '../generator/file-writer';
 import { Logger } from '../utils/logger';
 import { OpenAPISpec } from '../types/openapi';
-import { DtoImporter } from '../utils/dto-importer';
 
 export class GeneratorOrchestrator {
   private specParser: SpecParser;
@@ -88,36 +87,18 @@ export class GeneratorOrchestrator {
     spec: OpenAPISpec,
     outputDir: string
   ): Promise<void> {
-    const schemas = spec.components?.schemas || {};
     const inlineResponseSchemas = this.controllerGenerator.getInlineResponseSchemas();
 
-    // Separate shared and resource-specific schemas
-    const sharedSchemas: { [key: string]: any } = {};
-    const resourceSchemas: { [key: string]: any } = {};
-    for (const [name, schema] of Object.entries(schemas)) {
-      if (DtoImporter.isSharedSchema(schema)) {
-        sharedSchemas[name] = schema;
-      } else {
-        resourceSchemas[name] = schema;
-      }
-    }
+    const dtoFiles = await this.dtoGenerator.generateAllDtoFiles(
+      resourceName,
+      spec,
+      outputDir,
+      inlineResponseSchemas,
+      this.config.outputDir
+    );
 
-    // Generate shared DTOs 
-    if (Object.keys(sharedSchemas).length > 0) {
-      const sharedDir = path.join(this.config.outputDir, DtoImporter.SHARED_FOLDER);
-      const sharedDtoPath = path.join(sharedDir, `${DtoImporter.SHARED_DTO_FILE}.ts`);
-      const sharedDtoContent = await this.dtoGenerator.generateDtos(sharedSchemas, undefined, spec);
-      await this.fileWriter.writeFile(sharedDtoPath, sharedDtoContent);
-    }
-
-    // Generate resource-specific DTOs (including inline response DTOs)
-    if (
-      Object.keys(resourceSchemas).length > 0 ||
-      (inlineResponseSchemas && inlineResponseSchemas.size > 0)
-    ) {
-      const dtoOutputPath = path.join(outputDir, `${resourceName}.dto.ts`);
-      const dtoContent = await this.dtoGenerator.generateDtos(resourceSchemas, inlineResponseSchemas, spec);
-      await this.fileWriter.writeFile(dtoOutputPath, dtoContent);
+    for (const { filePath, content } of dtoFiles) {
+      await this.fileWriter.writeFile(filePath, content);
     }
   }
 

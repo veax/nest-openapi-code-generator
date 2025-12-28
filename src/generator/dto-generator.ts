@@ -1,6 +1,7 @@
 import {OpenAPISpec} from '../types/openapi';
 import {TemplateLoader} from '../utils/template-loader';
 import {DtoImporter} from '../utils/dto-importer';
+import * as path from 'path';
 
 interface DtoProperty {
     name: string;
@@ -21,6 +22,38 @@ export class DtoGenerator {
 
     constructor(templateDir?: string) {
         this.templateLoader = new TemplateLoader(templateDir);
+    }
+
+    async generateAllDtoFiles(
+        resourceName: string,
+        spec: OpenAPISpec,
+        outputDir: string,
+        inlineResponseSchemas: Map<string, any>,
+        configOutputDir: string
+    ): Promise<Array<{ filePath: string, content: string }>> {
+        const schemas = spec.components?.schemas || {};
+        const { sharedSchemas, resourceSchemas } = DtoGenerator.splitSchemas(schemas);
+        const results: Array<{ filePath: string, content: string }> = [];
+
+        // Shared DTOs
+        if (Object.keys(sharedSchemas).length > 0) {
+            const sharedDir = path.join(configOutputDir, DtoImporter.SHARED_FOLDER);
+            const sharedDtoPath = path.join(sharedDir, `${DtoImporter.SHARED_DTO_FILE}.ts`);
+            const sharedDtoContent = await this.generateDtos(sharedSchemas, undefined, spec);
+            results.push({ filePath: sharedDtoPath, content: sharedDtoContent });
+        }
+
+        // Resource-specific DTOs (including inline response DTOs)
+        if (
+            Object.keys(resourceSchemas).length > 0 ||
+            (inlineResponseSchemas && inlineResponseSchemas.size > 0)
+        ) {
+            const dtoOutputPath = path.join(outputDir, `${resourceName}.dto.ts`);
+            const dtoContent = await this.generateDtos(resourceSchemas, inlineResponseSchemas, spec);
+            results.push({ filePath: dtoOutputPath, content: dtoContent });
+        }
+
+        return results;
     }
 
     async generateDto(dtoName: string, schema: any, spec: OpenAPISpec): Promise<string> {
@@ -676,6 +709,22 @@ export class DtoGenerator {
         }
 
         return enums;
+    }
+
+    private static splitSchemas(schemas: { [key: string]: any }): {
+        sharedSchemas: { [key: string]: any },
+        resourceSchemas: { [key: string]: any }
+    } {
+        const sharedSchemas: { [key: string]: any } = {};
+        const resourceSchemas: { [key: string]: any } = {};
+        for (const [name, schema] of Object.entries(schemas)) {
+            if (DtoImporter.isSharedSchema(schema)) {
+                sharedSchemas[name] = schema;
+            } else {
+                resourceSchemas[name] = schema;
+            }
+        }
+        return { sharedSchemas, resourceSchemas };
     }
 
     /**
