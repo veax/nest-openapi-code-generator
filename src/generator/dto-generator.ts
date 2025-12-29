@@ -53,11 +53,7 @@ export class DtoGenerator {
     async generateDto(dtoName: string, schema: any, spec: OpenAPISpec): Promise<string> {
         const template = await this.templateLoader.loadTemplate('dto');
 
-        // Get the original schema with $ref intact if available
-        const originalSpec = (spec as any)._originalSpec;
-        const originalSchema = originalSpec ? this.findOriginalSchema(dtoName, originalSpec) : schema;
-
-        const mainDtoSchema = this.processSchema(dtoName, originalSchema || schema, spec);
+        const mainDtoSchema = this.processSchema(dtoName, schema, spec);
 
         // Collect all referenced DTOs and order them properly
         const allDtos = this.collectAndOrderAllDtos(mainDtoSchema, spec);
@@ -98,7 +94,7 @@ export class DtoGenerator {
         });
     }
 
-    async generateDtos(schemas: { [key: string]: any }, inlineSchemas?: Map<string, any>, spec?: OpenAPISpec): Promise<string> {
+    private async generateDtos(schemas: { [key: string]: any }, inlineSchemas?: Map<string, any>, spec?: OpenAPISpec): Promise<string> {
         // If no spec provided, create a minimal one
         if (!spec) {
             spec = { openapi: '3.1.0', info: { title: 'Generated', version: '1.0.0' }, paths: {} };
