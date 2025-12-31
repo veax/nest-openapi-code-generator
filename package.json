@@ -18,7 +18,8 @@
     "dev": "tsc --watch",
     "test": "jest",
     "test:watch": "jest --watch",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "prepare": "npm run build"
   },
   "keywords": [
     "openapi",
