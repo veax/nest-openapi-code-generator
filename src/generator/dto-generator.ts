@@ -533,7 +533,9 @@ export class DtoGenerator {
             const ref = prop?.$ref || prop?.items?.$ref
             if (ref) {
                 // Handle $ref references
-                const refSchema = this.specParser.resolveRef(spec, ref);
+                let refSchema = this.specParser.resolveRef(spec, ref);
+                // Merge allOf if present
+                refSchema = this.mergeAllOf(refSchema, spec);
                 const matchingDtoName = this.findMatchingExistingDto(refSchema, spec);
                 if (!matchingDtoName) {
                     // Create inline DTO type: ParentTypeFieldDto/ParentTypeFieldItemDto
