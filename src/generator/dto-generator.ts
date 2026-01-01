@@ -198,6 +198,11 @@ export class DtoGenerator {
     }
 
     private processSchema(dtoName: string, schema: any, spec: OpenAPISpec): DtoSchema {
+        // Handle allOf if present
+        if (schema.allOf) {
+            schema = this.mergeAllOf(schema, spec);
+        }
+        
         const properties: DtoProperty[] = [];
         const imports = new Set<string>();
         const required = schema.required || [];
@@ -748,5 +753,31 @@ export class DtoGenerator {
      */
     async generateAllDtos(schemas: { [key: string]: any }, spec: OpenAPISpec): Promise<string> {
         return this.generateDtos(schemas, undefined, spec);
+    }
+
+    private mergeAllOf(schema: any, spec: OpenAPISpec): any {
+        if (!schema.allOf) return schema;
+
+        // Start with an empty object schema
+        let merged: any = { type: 'object', properties: {}, required: [] };
+
+        for (const subSchema of schema.allOf) {
+            let resolved = subSchema;
+            if (subSchema.$ref) {
+                resolved = this.specParser.resolveRef(spec, subSchema.$ref);
+            }
+            // Recursively merge allOf in subschemas
+            resolved = this.mergeAllOf(resolved, spec);
+
+            // Merge properties
+            if (resolved.properties) {
+                merged.properties = { ...merged.properties, ...resolved.properties };
+            }
+            // Merge required
+            if (resolved.required) {
+                merged.required = Array.from(new Set([...(merged.required || []), ...resolved.required]));
+            }
+        }
+        return merged;
     }
 }
