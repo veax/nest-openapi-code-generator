@@ -528,14 +528,27 @@ export class DtoGenerator {
         }
 
         for (const [propName, propSchema] of Object.entries(schema.properties)) {
-            let prop = propSchema as any;
+            const prop = propSchema as any;
+
+            const ref = prop?.$ref || prop?.items?.$ref
+            if (ref) {
+                // Handle $ref references
+                const refSchema = this.specParser.resolveRef(spec, ref);
+                const matchingDtoName = this.findMatchingExistingDto(refSchema, spec);
+                if (!matchingDtoName) {
+                    // Create inline DTO type: ParentTypeFieldDto/ParentTypeFieldItemDto
+                    const parentTypeName = parentDtoName?.replace(/Dto$/, '') || 'Unknown';
+                    const fieldName = propName.charAt(0).toUpperCase() + propName.slice(1);
+                    const inlineDtoName = prop?.$ref ? `${parentTypeName}${fieldName}Dto` : `${parentTypeName}${fieldName}ItemDto`;
+                    nestedDtoSchemas.set(inlineDtoName, refSchema);
+
+                    // Recursively collect nested DTOs from this nested object
+                    this.collectNestedDtoSchemas(refSchema, nestedDtoSchemas, spec, inlineDtoName);
+                }
+            }
 
             // Handle nested objects that should become DTOs
-            if (prop.type === 'object' && prop.properties) {
-                // Handle $ref references
-                if (prop.$ref) { 
-                    prop = this.specParser.resolveRef(spec, prop.$ref);
-                }
+            if (prop.type === 'object' && prop.properties && !prop.$ref) {
                 const matchingDtoName = this.findMatchingExistingDto(prop, spec);
                 if (!matchingDtoName) {
                     // Create inline DTO type: ParentTypeFieldDto
@@ -550,11 +563,7 @@ export class DtoGenerator {
             }
 
             // Handle arrays with nested objects
-            if (prop.type === 'array' && prop.items && prop.items.type === 'object' && prop.items.properties) {
-                // Handle $ref references
-                if (prop.items.$ref) {
-                    prop.items = this.specParser.resolveRef(spec, prop.items.$ref);
-                }
+            if (prop.type === 'array' && prop.items && prop.items.type === 'object' && prop.items.properties && !prop.items.$ref) {
                 const matchingDtoName = this.findMatchingExistingDto(prop.items, spec);
                 if (!matchingDtoName) {
                     // Create inline DTO type for array items: ParentTypeFieldItemDto
