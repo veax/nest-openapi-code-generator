@@ -114,45 +114,36 @@ export class DtoGenerator {
         const enumNames = new Set<string>();
 
         // First pass: generate all component DTOs
-        for (const [schemaName, schema] of Object.entries(schemas)) {
+        for (let [schemaName, schema] of Object.entries(schemas)) {
             const dtoName = `${schemaName}Dto`;
-            const dtoSchema = this.processSchema(dtoName, schema, spec);
-
-            allDtos.set(dtoName, dtoSchema);
-            dependencies.set(dtoName, new Set(dtoSchema.imports));
-
-            // Collect nested DTO schemas
-            this.collectNestedDtoSchemas(schema, nestedDtoSchemas, spec, dtoName);
-
-            // Collect enums from the resolved schema
-            const schemaEnums = this.collectEnumsForTemplate(schema, spec);
-            schemaEnums.forEach(enumDef => {
-                if (!enumNames.has(enumDef.name)) {
-                    enumNames.add(enumDef.name);
-                    allEnums.push(enumDef);
-                }
-            });
+            this.processAndCollectDto(
+                dtoName,
+                schema,
+                spec,
+                allDtos,
+                dependencies,
+                nestedDtoSchemas,
+                allEnums,
+                enumNames,
+                true
+            );
         }
 
         // Second pass: generate inline response DTOs
         if (inlineSchemas) {
             for (const [dtoName, schema] of inlineSchemas.entries()) {
                 if (!allDtos.has(dtoName)) {
-                    const dtoSchema = this.processSchema(dtoName, schema, spec);
-                    allDtos.set(dtoName, dtoSchema);
-                    dependencies.set(dtoName, new Set(dtoSchema.imports));
-
-                    // Collect nested DTO schemas from inline schemas
-                    this.collectNestedDtoSchemas(schema, nestedDtoSchemas, spec, dtoName);
-
-                    // Collect enums from inline schemas
-                    const inlineEnums = this.collectEnumsForTemplate(schema, spec);
-                    inlineEnums.forEach(enumDef => {
-                        if (!enumNames.has(enumDef.name)) {
-                            enumNames.add(enumDef.name);
-                            allEnums.push(enumDef);
-                        }
-                    });
+                        this.processAndCollectDto(
+                        dtoName,
+                        schema,
+                        spec,
+                        allDtos,
+                        dependencies,
+                        nestedDtoSchemas,
+                        allEnums,
+                        enumNames,
+                        true
+                    );
                 }
             }
         }
@@ -160,18 +151,17 @@ export class DtoGenerator {
         // Third pass: generate nested DTOs
         for (const [nestedDtoName, nestedSchema] of nestedDtoSchemas.entries()) {
             if (!allDtos.has(nestedDtoName)) {
-                const dtoSchema = this.processSchema(nestedDtoName, nestedSchema, spec);
-                allDtos.set(nestedDtoName, dtoSchema);
-                dependencies.set(nestedDtoName, new Set(dtoSchema.imports));
-
-                // Collect enums from nested schemas
-                const nestedEnums = this.collectEnumsForTemplate(nestedSchema, spec);
-                nestedEnums.forEach(enumDef => {
-                    if (!enumNames.has(enumDef.name)) {
-                        enumNames.add(enumDef.name);
-                        allEnums.push(enumDef);
-                    }
-                });
+                this.processAndCollectDto(
+                    nestedDtoName,
+                    nestedSchema,
+                    spec,
+                    allDtos,
+                    dependencies,
+                    nestedDtoSchemas,
+                    allEnums,
+                    enumNames,
+                    false
+                );
             }
         }
 
@@ -198,11 +188,6 @@ export class DtoGenerator {
     }
 
     private processSchema(dtoName: string, schema: any, spec: OpenAPISpec): DtoSchema {
-        // Handle allOf if present
-        if (schema.allOf) {
-            schema = this.mergeAllOf(schema, spec);
-        }
-        
         const properties: DtoProperty[] = [];
         const imports = new Set<string>();
         const required = schema.required || [];
@@ -770,5 +755,40 @@ export class DtoGenerator {
             }
         }
         return merged;
+    }
+
+    private processAndCollectDto(
+        dtoName: string,
+        schema: any,
+        spec: OpenAPISpec,
+        allDtos: Map<string, DtoSchema>,
+        dependencies: Map<string, Set<string>>,
+        nestedDtoSchemas: Map<string, any>,
+        allEnums: Array<{ name: string, values: Array<{ key: string, value: string }> }>,
+        enumNames: Set<string>,
+        collectNested: boolean = true
+    ): void {
+        // Handle allOf if present
+        if (schema.allOf) {
+            schema = this.mergeAllOf(schema, spec);
+        }
+        const dtoSchema = this.processSchema(dtoName, schema, spec);
+
+        allDtos.set(dtoName, dtoSchema);
+        dependencies.set(dtoName, new Set(dtoSchema.imports));
+
+        // Collect nested DTO schemas
+        if (collectNested) {
+            this.collectNestedDtoSchemas(schema, nestedDtoSchemas, spec, dtoName);
+        }
+
+        // Collect enums from the resolved schema
+        const schemaEnums = this.collectEnumsForTemplate(schema, spec);
+        schemaEnums.forEach(enumDef => {
+            if (!enumNames.has(enumDef.name)) {
+                enumNames.add(enumDef.name);
+                allEnums.push(enumDef);
+            }
+        });
     }
 }

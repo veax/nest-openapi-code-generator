@@ -486,7 +486,7 @@ components:
     ApiMessage: # <-- reference external schema from here
       $ref: './schemas/common.yaml#/components/schemas/ApiMessage'
 ```
-For correct parsing, it's important to first reference your external schema under `user.openapi.yaml` `components.schemas`.
+For correct parsing, it's important to first reference your external schema under `user.openapi.yaml` `components.schemas`. Additionally, if a schema from an external file uses a shared schema, that shared schema should also be referenced under `user.openapi.yaml` `components.schemas` (only top-level shared schemas are parsed by generator)
 
 Any schema with `x-shared: true` will be generated as a shared DTO.
 This approach keeps your code DRY and your DTOs consistent across your API.
