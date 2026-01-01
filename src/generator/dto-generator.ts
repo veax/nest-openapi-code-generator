@@ -1,6 +1,7 @@
 import {OpenAPISpec} from '../types/openapi';
 import {TemplateLoader} from '../utils/template-loader';
 import {DtoImporter} from '../utils/dto-importer';
+import { SpecParser } from '../parser/spec-parser';
 
 interface DtoProperty {
     name: string;
@@ -18,9 +19,11 @@ interface DtoSchema {
 
 export class DtoGenerator {
     private templateLoader: TemplateLoader;
+    private specParser: SpecParser;
 
-    constructor(templateDir?: string) {
+    constructor(templateDir?: string, specParser?: SpecParser) {
         this.templateLoader = new TemplateLoader(templateDir);
+        this.specParser = specParser || new SpecParser();
     }
 
     async generateAllDtosSplit(
@@ -224,6 +227,11 @@ export class DtoGenerator {
         const decorators: string[] = [];
         let type = this.getTypeScriptType(schema, spec, imports, currentDtoName, name);
 
+        // Handle references to properties of another schemas
+        if (schema.$ref && schema.$ref.includes('/properties/')) {
+            schema = this.specParser.resolveRef(spec, schema.$ref);
+        }
+
         // Handle nested objects with properties
         if (schema.type === 'object' && schema.properties && !schema.$ref) {
             // First, check if this matches an existing schema exactly
@@ -313,6 +321,11 @@ export class DtoGenerator {
             }
             if (schema.items) {
                 let itemType = this.getTypeScriptType(schema.items, spec, imports, currentDtoName);
+
+                // Handle references to properties of another schemas
+                if (schema.items.$ref && schema.items.$ref.includes('/properties/')) {
+                    schema.items = this.specParser.resolveRef(spec, schema.items.$ref);
+                }
 
                 // Check if array items match an existing DTO
                 if (schema.items.type === 'object' && schema.items.properties && !schema.items.$ref) {
@@ -526,6 +539,23 @@ export class DtoGenerator {
 
         for (const [propName, propSchema] of Object.entries(schema.properties)) {
             const prop = propSchema as any;
+
+            const ref = prop?.$ref || prop?.items?.$ref
+            if (ref) {
+                // Handle $ref references
+                const refSchema = this.specParser.resolveRef(spec, ref);
+                const matchingDtoName = this.findMatchingExistingDto(refSchema, spec);
+                if (!matchingDtoName) {
+                    // Create inline DTO type: ParentTypeFieldDto
+                    const parentTypeName = parentDtoName?.replace(/Dto$/, '') || 'Unknown';
+                    const fieldName = propName.charAt(0).toUpperCase() + propName.slice(1);
+                    const inlineDtoName = prop?.$ref ? `${parentTypeName}${fieldName}Dto` : `${parentTypeName}${fieldName}ItemDto`;
+                    nestedDtoSchemas.set(inlineDtoName, refSchema);
+
+                    // Recursively collect nested DTOs from this nested object
+                    this.collectNestedDtoSchemas(refSchema, nestedDtoSchemas, spec, inlineDtoName);
+                }
+            }
 
             // Handle nested objects that should become DTOs
             if (prop.type === 'object' && prop.properties && !prop.$ref) {

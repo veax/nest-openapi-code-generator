@@ -21,7 +21,8 @@ export class GeneratorOrchestrator {
     this.logger = new Logger();
     this.specParser = new SpecParser();
     this.dtoGenerator = new DtoGenerator(
-      this.config.templateDir
+      this.config.templateDir,
+      this.specParser
     );
     this.controllerGenerator = new ControllerGenerator(
       this.config.templateDir,
