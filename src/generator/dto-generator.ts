@@ -533,35 +533,15 @@ export class DtoGenerator {
             return;
         }
 
-        const isSchemaObjectOrArray = (candidatSchema: any) => {
-            return (candidatSchema.type === 'object' && candidatSchema.properties) || (candidatSchema.type === 'array' && candidatSchema.items && candidatSchema.items.type === 'object' && candidatSchema.items.properties);
-        }
-
         for (const [propName, propSchema] of Object.entries(schema.properties)) {
-            const prop = propSchema as any;
+            let prop = propSchema as any;
 
             const ref = prop?.$ref || prop?.items?.$ref
             if (ref) {
                 // Handle $ref references
-                let refSchema = this.specParser.resolveRef(spec, ref);
+                prop = this.specParser.resolveRef(spec, ref);
                 // Merge allOf if present
-                refSchema = this.mergeAllOf(refSchema, spec);
-
-                if (!isSchemaObjectOrArray(refSchema)) {
-                    continue;
-                }
-
-                const matchingDtoName = this.findMatchingExistingDto(refSchema, spec);
-                if (!matchingDtoName) {
-                    // Create inline DTO type: ParentTypeFieldDto/ParentTypeFieldItemDto
-                    const parentTypeName = parentDtoName?.replace(/Dto$/, '') || 'Unknown';
-                    const fieldName = propName.charAt(0).toUpperCase() + propName.slice(1);
-                    const inlineDtoName = prop?.$ref ? `${parentTypeName}${fieldName}Dto` : `${parentTypeName}${fieldName}ItemDto`;
-                    nestedDtoSchemas.set(inlineDtoName, refSchema);
-
-                    // Recursively collect nested DTOs from this nested object
-                    this.collectNestedDtoSchemas(refSchema, nestedDtoSchemas, spec, inlineDtoName);
-                }
+                prop = this.mergeAllOf(prop, spec);
             }
 
             // Handle nested objects that should become DTOs
