@@ -406,21 +406,27 @@ export class DtoGenerator {
     }
 
     private getTypeScriptType(schema: any, spec?: OpenAPISpec, imports?: Set<string>, currentDtoName?: string, propertyName?: string): string {
+
         if (schema.$ref) {
-            const refName = schema.$ref.split('/').pop();
-            const dtoName = `${refName}Dto`;
+            if (schema.$ref.includes('/properties/')) {
+                // Handle references to properties of another schemas
+                schema = this.specParser.resolveRef(spec!, schema.$ref);
+            } else {
+                const refName = schema.$ref.split('/').pop();
+                const dtoName = `${refName}Dto`;
 
-            // Check for circular reference - if the referenced DTO is the same as current, use 'any'
-            if (currentDtoName && dtoName === currentDtoName) {
-                return 'any';
+                // Check for circular reference - if the referenced DTO is the same as current, use 'any'
+                if (currentDtoName && dtoName === currentDtoName) {
+                    return 'any';
+                }
+
+                // Add import for referenced DTO if imports set is provided
+                if (imports) {
+                    imports.add(dtoName);
+                }
+
+                return dtoName;
             }
-
-            // Add import for referenced DTO if imports set is provided
-            if (imports) {
-                imports.add(dtoName);
-            }
-
-            return dtoName;
         }
 
         switch (schema.type) {
