@@ -16,6 +16,7 @@ export class GeneratorOrchestrator {
   private serviceGenerator: ServiceGenerator;
   private fileWriter: FileWriter;
   private logger: Logger;
+  private sharedDtoContents: string[] = []; // track shared DTO contents
 
   constructor(private config: GeneratorConfig) {
     this.logger = new Logger();
@@ -51,6 +52,15 @@ export class GeneratorOrchestrator {
 
       for (const specPath of specPaths) {
         await this.generateFromSpec(specPath);
+      }
+
+      // After all specs processed, merge and write shared DTOs
+      if (this.sharedDtoContents.length > 0) {
+        const sharedDir = path.join(this.config.outputDir, DtoImporter.SHARED_FOLDER);
+        const sharedDtoPath = path.join(sharedDir, `${DtoImporter.SHARED_DTO_FILE}.ts`);
+
+        const mergedDtos = DtoImporter.mergeSharedDtos(this.sharedDtoContents);
+        await this.fileWriter.writeFile(sharedDtoPath, mergedDtos);
       }
 
       this.logger.success('Code generation completed!');
@@ -102,9 +112,7 @@ export class GeneratorOrchestrator {
     );
 
     if (sharedDtoContent) {
-      const sharedDir = path.join(this.config.outputDir, DtoImporter.SHARED_FOLDER);
-      const sharedDtoPath = path.join(sharedDir, `${DtoImporter.SHARED_DTO_FILE}.ts`);
-      await this.fileWriter.writeFile(sharedDtoPath, sharedDtoContent);
+      this.sharedDtoContents.push(sharedDtoContent);
     }
 
     if (resourceDtoContent) {
