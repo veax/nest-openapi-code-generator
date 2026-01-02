@@ -527,6 +527,10 @@ export class DtoGenerator {
             return;
         }
 
+        const isSchemaObjectOrArray = (candidatSchema: any) => {
+            return (candidatSchema.type === 'object' && candidatSchema.properties) || (candidatSchema.type === 'array' && candidatSchema.items && candidatSchema.items.type === 'object' && candidatSchema.items.properties);
+        }
+
         for (const [propName, propSchema] of Object.entries(schema.properties)) {
             const prop = propSchema as any;
 
@@ -536,6 +540,11 @@ export class DtoGenerator {
                 let refSchema = this.specParser.resolveRef(spec, ref);
                 // Merge allOf if present
                 refSchema = this.mergeAllOf(refSchema, spec);
+
+                if (!isSchemaObjectOrArray(refSchema)) {
+                    continue;
+                }
+
                 const matchingDtoName = this.findMatchingExistingDto(refSchema, spec);
                 if (!matchingDtoName) {
                     // Create inline DTO type: ParentTypeFieldDto/ParentTypeFieldItemDto
