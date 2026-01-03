@@ -19,10 +19,12 @@ interface DtoSchema {
 export class DtoGenerator {
     private templateLoader: TemplateLoader;
     private enumSchemaMap: Map<string, string>;
+    private createdEnumsMap: Map<string, string>; // Track enum values -> enum names created during generation
 
     constructor(templateDir?: string) {
         this.templateLoader = new TemplateLoader(templateDir);
         this.enumSchemaMap = new Map<string, string>();
+        this.createdEnumsMap = new Map<string, string>();
     }
 
     async generateAllDtosSplit(
@@ -60,6 +62,9 @@ export class DtoGenerator {
     async generateDto(dtoName: string, schema: any, spec: OpenAPISpec): Promise<string> {
         const template = await this.templateLoader.loadTemplate('dto');
 
+        // Reset created enums map for this generation
+        this.createdEnumsMap.clear();
+
         const mainDtoSchema = this.processSchema(dtoName, schema, spec, this.enumSchemaMap);
 
         // Collect all referenced DTOs and order them properly
@@ -70,7 +75,7 @@ export class DtoGenerator {
         const enumNames = new Set<string>();
 
         // Collect enums from the main schema
-        const mainEnums = this.collectEnumsForTemplate(schema, spec, this.enumSchemaMap);
+        const mainEnums = this.collectEnumsForTemplate(schema, spec, this.enumSchemaMap, new Set(), dtoName);
         mainEnums.forEach(enumDef => {
             if (!enumNames.has(enumDef.name)) {
                 enumNames.add(enumDef.name);
@@ -84,7 +89,7 @@ export class DtoGenerator {
                 const refSchemaName = dto.name.replace(/Dto$/, '');
                 const refSchema = spec.components?.schemas?.[refSchemaName];
                 if (refSchema) {
-                    const refEnums = this.collectEnumsForTemplate(refSchema, spec, this.enumSchemaMap);
+                    const refEnums = this.collectEnumsForTemplate(refSchema, spec, this.enumSchemaMap, new Set(), dto.name);
                     refEnums.forEach(enumDef => {
                         if (!enumNames.has(enumDef.name)) {
                             enumNames.add(enumDef.name);
@@ -114,6 +119,9 @@ export class DtoGenerator {
         const nestedDtoSchemas = new Map<string, any>();
         const allEnums: Array<{ name: string, values: Array<{ key: string, value: string }> }> = [];
         const enumNames = new Set<string>();
+
+        // Reset created enums map for each generation pass
+        this.createdEnumsMap.clear();
 
         // First pass: generate all component DTOs
         for (let [schemaName, schema] of Object.entries(schemas)) {
@@ -337,9 +345,56 @@ export class DtoGenerator {
             if (schema.enum) {
                 // Check if this enum matches an existing enum schema from original spec
                 const enumKey = JSON.stringify(schema.enum.sort());
-                const enumName = enumSchemaMap.has(enumKey) 
-                    ? enumSchemaMap.get(enumKey)! 
-                    : this.getEnumName(name, schema.enum);
+                let enumName: string;
+                
+                if (enumSchemaMap.has(enumKey)) {
+                    enumName = enumSchemaMap.get(enumKey)!;
+                } else if (this.createdEnumsMap.has(enumKey)) {
+                    // Reuse an enum that was already created during this generation pass
+                    enumName = this.createdEnumsMap.get(enumKey)!;
+                } else {
+                    // Create a new enum name
+                    // First, check if this schema extends another via allOf that has the same enum
+                    let preferredSchemaName = currentDtoName;
+                    if (currentDtoName) {
+                        const originalSpec = (spec as any)._originalSpec;
+                        const schemaName = currentDtoName.replace(/Dto$/, '');
+                        const currentSchema = originalSpec?.components?.schemas?.[schemaName];
+                        
+                        // Check if this schema extends another via allOf
+                        if (currentSchema?.allOf) {
+                            for (const allOfItem of currentSchema.allOf) {
+                                if (allOfItem.$ref) {
+                                    const refName = allOfItem.$ref.split('/').pop();
+                                    // Check resolved spec for the base schema (which has properties resolved)
+                                    const baseSchema = spec.components?.schemas?.[refName];
+                                    
+                                    // Check if base schema has the same enum property
+                                    if (baseSchema?.properties?.[name]?.enum) {
+                                        const baseEnumKey = JSON.stringify(baseSchema.properties[name].enum.sort());
+                                        if (baseEnumKey === enumKey) {
+                                            // Use base schema name instead
+                                            preferredSchemaName = `${refName}Dto`;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    if (preferredSchemaName) {
+                        const parentBase = preferredSchemaName.replace(/Dto$/, '');
+                        enumName = `${parentBase}${this.getEnumName(name, schema.enum)}`;
+                    } else {
+                        // Fallback: include enum values in name
+                        const enumValuesStr = schema.enum.map((v: string) => v.charAt(0).toUpperCase() + v.slice(1)).join('');
+                        enumName = `${this.getEnumName(name, schema.enum)}${enumValuesStr}`;
+                    }
+                    
+                    // Track this enum for reuse
+                    this.createdEnumsMap.set(enumKey, enumName);
+                }
                 decorators.push(`@IsEnum(${enumName})`);
             }
 
@@ -600,7 +655,36 @@ export class DtoGenerator {
             return false;
         }
 
-        return props1.every((prop, index) => prop === props2[index]);
+        // Check property names match
+        if (!props1.every((prop, index) => prop === props2[index])) {
+            return false;
+        }
+
+        // Also check that property types/enums match to distinguish similar schemas
+        // This is important for distinguishing PointCoordinates vs PolygonCoordinates
+        for (const propName of props1) {
+            const prop1 = schema1.properties[propName];
+            const prop2 = schema2.properties[propName];
+            
+            // Check enum values if both have enums
+            if (prop1.enum && prop2.enum) {
+                const enum1 = JSON.stringify(prop1.enum.sort());
+                const enum2 = JSON.stringify(prop2.enum.sort());
+                if (enum1 !== enum2) {
+                    return false;
+                }
+            } else if (prop1.enum || prop2.enum) {
+                // One has enum, other doesn't
+                return false;
+            }
+            
+            // Check type
+            if (prop1.type !== prop2.type) {
+                return false;
+            }
+        }
+    
+        return true;
     }
 
 
@@ -729,7 +813,7 @@ export class DtoGenerator {
         return result;
     }
 
-    private collectEnumsForTemplate(schema: any, spec: OpenAPISpec, enumSchemaMap: Map<string, string>, visited = new Set<any>()): Array<{
+    private collectEnumsForTemplate(schema: any, spec: OpenAPISpec, enumSchemaMap: Map<string, string>, visited = new Set<any>(), parentSchemaName?: string): Array<{
         name: string,
         values: Array<{ key: string, value: string }>
     }> {
@@ -753,9 +837,52 @@ export class DtoGenerator {
                     if (enumSchemaMap.has(enumKey)) {
                         // Use the original schema name
                         enumName = enumSchemaMap.get(enumKey)!;
+                    } else if (this.createdEnumsMap.has(enumKey)) {
+                        // Reuse an enum that was already created during this generation pass
+                        // This handles cases where schemas share enums via allOf
+                        enumName = this.createdEnumsMap.get(enumKey)!;
                     } else {
-                        // Fall back to property-based naming
-                        enumName = this.getEnumName(propName, prop.enum);
+                        // Create a new enum name
+                        // First, check if this schema extends another via allOf that has the same enum
+                        let preferredSchemaName = parentSchemaName;
+                        if (parentSchemaName) {
+                            const originalSpec = (spec as any)._originalSpec;
+                            const schemaName = parentSchemaName.replace(/Dto$/, '');
+                            const currentSchema = originalSpec?.components?.schemas?.[schemaName];
+                            
+                            // Check if this schema extends another via allOf
+                            if (currentSchema?.allOf) {
+                                for (const allOfItem of currentSchema.allOf) {
+                                    if (allOfItem.$ref) {
+                                        const refName = allOfItem.$ref.split('/').pop();
+                                        // Check resolved spec for the base schema (which has properties resolved)
+                                        const baseSchema = spec.components?.schemas?.[refName];
+                                        
+                                        // Check if base schema has the same enum property
+                                        if (baseSchema?.properties?.[propName]?.enum) {
+                                            const baseEnumKey = JSON.stringify(baseSchema.properties[propName].enum.sort());
+                                            if (baseEnumKey === enumKey) {
+                                                // Use base schema name instead
+                                                preferredSchemaName = `${refName}Dto`;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        if (preferredSchemaName) {
+                            const parentBase = preferredSchemaName.replace(/Dto$/, '');
+                            enumName = `${parentBase}${this.getEnumName(propName, prop.enum)}`;
+                        } else {
+                            // Fallback: include enum values in name to ensure uniqueness
+                            const enumValuesStr = prop.enum.map((v: string) => v.charAt(0).toUpperCase() + v.slice(1)).join('');
+                            enumName = `${this.getEnumName(propName, prop.enum)}${enumValuesStr}`;
+                        }
+                        
+                        // Track this enum for reuse
+                        this.createdEnumsMap.set(enumKey, enumName);
                     }
 
                     if (!enumNames.has(enumName)) {
@@ -774,7 +901,7 @@ export class DtoGenerator {
 
                 // Recursively check nested objects (but not $ref to avoid infinite recursion)
                 if (prop.type === 'object' && prop.properties && !visited.has(prop)) {
-                    const nestedEnums = this.collectEnumsForTemplate(prop, spec, enumSchemaMap, visited);
+                    const nestedEnums = this.collectEnumsForTemplate(prop, spec, enumSchemaMap, visited, parentSchemaName);
                     nestedEnums.forEach(nestedEnum => {
                         if (!enumNames.has(nestedEnum.name)) {
                             enumNames.add(nestedEnum.name);
@@ -784,7 +911,7 @@ export class DtoGenerator {
                 }
 
                 if (prop.type === 'array' && prop.items && prop.items.type === 'object' && prop.items.properties && !visited.has(prop.items)) {
-                    const arrayEnums = this.collectEnumsForTemplate(prop.items, spec, enumSchemaMap, visited);
+                    const arrayEnums = this.collectEnumsForTemplate(prop.items, spec, enumSchemaMap, visited, parentSchemaName);
                     arrayEnums.forEach(arrayEnum => {
                         if (!enumNames.has(arrayEnum.name)) {
                             enumNames.add(arrayEnum.name);
@@ -873,8 +1000,8 @@ export class DtoGenerator {
             }
         }
 
-        // Collect enums from the resolved schema
-        const schemaEnums = this.collectEnumsForTemplate(schema, spec, enumSchemaMap);
+        // Collect enums from the resolved schema, passing the DTO name as parent context
+        const schemaEnums = this.collectEnumsForTemplate(schema, spec, enumSchemaMap, new Set(), dtoName);
         schemaEnums.forEach(enumDef => {
             if (!enumNames.has(enumDef.name)) {
                 enumNames.add(enumDef.name);
