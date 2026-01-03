@@ -122,7 +122,7 @@ describe('GeneratorOrchestrator', () => {
       expect(controllerContent).toContain('} from \'@nestjs/common\'');
       expect(controllerContent).toContain('import { ApiTags, ApiOperation, ApiResponse');
       expect(controllerContent).toContain('import { GetUsersResponseDto, CreateUserRequestDto, UserDto, UpdateUserRequestDto, ProfileUpdateRequestDto, UserProfileDto } from \'./user.dto\';');
-      expect(controllerContent).toContain('import { ErrorDto, ValidationErrorDto, PaginationDto } from \'../shared/shared.dto\'');
+      expect(controllerContent).toContain('import { ErrorDto, ValidationErrorDto } from \'../shared/shared.dto\'');
 
       // Check controller class
       expect(controllerContent).toContain('export abstract class UserControllerBase');

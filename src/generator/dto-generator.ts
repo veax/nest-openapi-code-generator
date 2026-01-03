@@ -1,7 +1,6 @@
 import {OpenAPISpec} from '../types/openapi';
 import {TemplateLoader} from '../utils/template-loader';
 import {DtoImporter} from '../utils/dto-importer';
-import { SpecParser } from '../parser/spec-parser';
 
 interface DtoProperty {
     name: string;
@@ -19,11 +18,9 @@ interface DtoSchema {
 
 export class DtoGenerator {
     private templateLoader: TemplateLoader;
-    private specParser: SpecParser;
 
-    constructor(templateDir?: string, specParser?: SpecParser) {
+    constructor(templateDir?: string) {
         this.templateLoader = new TemplateLoader(templateDir);
-        this.specParser = specParser || new SpecParser();
     }
 
     async generateAllDtosSplit(
@@ -217,11 +214,6 @@ export class DtoGenerator {
         const decorators: string[] = [];
         let type = this.getTypeScriptType(schema, spec, imports, currentDtoName, name);
 
-        // Handle references to properties of another schemas
-        if (schema.$ref && schema.$ref.includes('/properties/')) {
-            schema = this.specParser.resolveRef(spec, schema.$ref);
-        }
-
         // Handle nested objects with properties
         if (schema.type === 'object' && schema.properties && !schema.$ref) {
             // First, check if this matches an existing schema exactly
@@ -312,11 +304,6 @@ export class DtoGenerator {
             if (schema.items) {
                 let itemType = this.getTypeScriptType(schema.items, spec, imports, currentDtoName);
 
-                // Handle references to properties of another schemas
-                if (schema.items.$ref && schema.items.$ref.includes('/properties/')) {
-                    schema.items = this.specParser.resolveRef(spec, schema.items.$ref);
-                }
-
                 // Check if array items match an existing DTO
                 if (schema.items.type === 'object' && schema.items.properties && !schema.items.$ref) {
                     const matchingDtoName = this.findMatchingExistingDto(schema.items, spec);
@@ -406,27 +393,21 @@ export class DtoGenerator {
     }
 
     private getTypeScriptType(schema: any, spec?: OpenAPISpec, imports?: Set<string>, currentDtoName?: string, propertyName?: string): string {
-
         if (schema.$ref) {
-            if (schema.$ref.includes('/properties/')) {
-                // Handle references to properties of another schemas
-                schema = this.specParser.resolveRef(spec!, schema.$ref);
-            } else {
-                const refName = schema.$ref.split('/').pop();
-                const dtoName = `${refName}Dto`;
+            const refName = schema.$ref.split('/').pop();
+            const dtoName = `${refName}Dto`;
 
-                // Check for circular reference - if the referenced DTO is the same as current, use 'any'
-                if (currentDtoName && dtoName === currentDtoName) {
-                    return 'any';
-                }
-
-                // Add import for referenced DTO if imports set is provided
-                if (imports) {
-                    imports.add(dtoName);
-                }
-
-                return dtoName;
+            // Check for circular reference - if the referenced DTO is the same as current, use 'any'
+            if (currentDtoName && dtoName === currentDtoName) {
+                return 'any';
             }
+
+            // Add import for referenced DTO if imports set is provided
+            if (imports) {
+                imports.add(dtoName);
+            }
+
+            return dtoName;
         }
 
         switch (schema.type) {
@@ -538,8 +519,6 @@ export class DtoGenerator {
 
             const ref = prop?.$ref || prop?.items?.$ref
             if (ref) {
-                // Handle $ref references
-                prop = this.specParser.resolveRef(spec, ref);
                 // Merge allOf if present
                 prop = this.mergeAllOf(prop, spec);
             }
@@ -744,12 +723,8 @@ export class DtoGenerator {
         let merged: any = { type: 'object', properties: {}, required: [] };
 
         for (const subSchema of schema.allOf) {
-            let resolved = subSchema;
-            if (subSchema.$ref) {
-                resolved = this.specParser.resolveRef(spec, subSchema.$ref);
-            }
             // Recursively merge allOf in subschemas
-            resolved = this.mergeAllOf(resolved, spec);
+            const resolved = this.mergeAllOf(subSchema, spec);
 
             // Merge properties
             if (resolved.properties) {
@@ -778,14 +753,18 @@ export class DtoGenerator {
         if (schema.allOf) {
             schema = this.mergeAllOf(schema, spec);
         }
-        const dtoSchema = this.processSchema(dtoName, schema, spec);
 
-        allDtos.set(dtoName, dtoSchema);
-        dependencies.set(dtoName, new Set(dtoSchema.imports));
+        // Only process if schema is not an enum
+        if (!schema.enum) {
+            const dtoSchema = this.processSchema(dtoName, schema, spec);
 
-        // Collect nested DTO schemas
-        if (collectNested) {
-            this.collectNestedDtoSchemas(schema, nestedDtoSchemas, spec, dtoName);
+            allDtos.set(dtoName, dtoSchema);
+            dependencies.set(dtoName, new Set(dtoSchema.imports));
+
+            // Collect nested DTO schemas
+            if (collectNested) {
+                this.collectNestedDtoSchemas(schema, nestedDtoSchemas, spec, dtoName);
+            }
         }
 
         // Collect enums from the resolved schema

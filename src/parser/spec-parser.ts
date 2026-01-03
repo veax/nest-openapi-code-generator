@@ -1,4 +1,4 @@
-import SwaggerParser from '@apidevtools/swagger-parser';
+import SwaggerParser, { dereference } from '@apidevtools/swagger-parser';
 import { OpenAPISpec } from '../types/openapi';
 import * as fs from 'fs-extra';
 import * as path from 'path';
@@ -11,10 +11,8 @@ export class SpecParser {
       // First, parse without resolving references to preserve $ref information
       this.originalSpec = await SwaggerParser.parse(specPath) as OpenAPISpec;
       
-      // Then validate and bundle for the main spec. Bundle resolves external $refs but keeps internal $refs intact - that simplifies handling of circular references
-      const spec = await SwaggerParser.bundle(specPath, {
-        validate: { spec: true },
-      }) as OpenAPISpec;
+      // Then validate and resolve references for the main spec
+      const spec = await SwaggerParser.validate(specPath) as OpenAPISpec;
 
       // Add original spec as a property for reference lookup
       (spec as any)._originalSpec = this.originalSpec;
