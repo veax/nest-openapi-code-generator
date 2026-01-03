@@ -179,7 +179,10 @@ describe('DtoGenerator', () => {
             expect(result.resourceDtoContent).toContain('@Matches(/^[a-z]{2}(-[A-Z]{2})?$/)');
 
             // Should handle enum for theme
-            expect(result.resourceDtoContent).toContain("enum: ['light', 'dark', 'auto']");
+            expect(result.resourceDtoContent).toContain("enum ThemeEnum");
+            expect(result.resourceDtoContent).toContain("AUTO = 'auto',");
+            expect(result.resourceDtoContent).toContain("DARK = 'dark',");
+            expect(result.resourceDtoContent).toContain("LIGHT = 'light'");
         });
     });
 
