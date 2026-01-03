@@ -285,6 +285,7 @@ export class DtoGenerator {
     private processProperty(name: string, schema: any, isRequired: boolean, spec: OpenAPISpec, imports: Set<string>, enumSchemaMap: Map<string, string>, currentDtoName?: string): DtoProperty {
         const decorators: string[] = [];
         let type = this.getTypeScriptType(schema, spec, imports, enumSchemaMap, currentDtoName, name);
+        let arrayItemType: string | undefined; // Store the resolved array item type
 
         // Handle nested objects with properties
         if (schema.type === 'object' && schema.properties && !schema.$ref) {
@@ -403,6 +404,17 @@ export class DtoGenerator {
                     // Update the main type to use the correct array type
                     type = `${itemType}[]`;
                 }
+                
+                // Also handle $ref items
+                if (schema.items.$ref) {
+                    const refName = schema.items.$ref.split('/').pop();
+                    itemType = `${refName}Dto`;
+                    imports.add(itemType);
+                    type = `${itemType}[]`;
+                }
+
+                // Store the resolved item type for use in @ApiProperty
+                arrayItemType = itemType;
 
                 if (schema.items.$ref || (schema.items.type === 'object' && schema.items.properties)) {
                     decorators.push('@ValidateNested({ each: true })');
@@ -446,9 +458,9 @@ export class DtoGenerator {
 
         if (schema.type === 'array') {
             apiPropertyOptions.push('isArray: true');
-            if (schema.items) {
-                const itemType = this.getTypeScriptType(schema.items, spec, imports, enumSchemaMap, currentDtoName);
-                const apiPropertyType = this.getApiPropertyType(itemType);
+            if (schema.items && arrayItemType) {
+                // Use the resolved itemType instead of recalculating
+                const apiPropertyType = this.getApiPropertyType(arrayItemType);
                 apiPropertyOptions.push(`type: () => ${apiPropertyType}`);
             }
         }
